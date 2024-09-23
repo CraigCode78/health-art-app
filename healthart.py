@@ -1,9 +1,9 @@
 import streamlit as st
 import requests
 import logging
-from openai import OpenAI
 import secrets
 import base64
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -11,22 +11,27 @@ logging.basicConfig(level=logging.DEBUG)
 # WHOOP API Configuration
 CLIENT_ID = st.secrets["CLIENT_ID"]
 CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
-REDIRECT_URI = 'https://healthartv1.streamlit.app/'  # Ensure this matches the WHOOP developer portal
+REDIRECT_URI = 'https://healthartv1.streamlit.app/'  # Ensure this matches WHOOP's developer portal
+
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # OpenAI API Configuration
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+def generate_state():
+    """Generate a secure random state string."""
+    return secrets.token_urlsafe(16)
 
 def generate_ai_art(recovery_score, additional_metrics=None):
     """
     Generate abstract AI art based on health data using OpenAI's DALL-E.
-    
+
     Args:
         recovery_score (float): The primary recovery score (0-100).
         additional_metrics (dict): Optional additional health metrics.
-    
+
     Returns:
         str: Base64-encoded image data or None if generation fails.
     """
@@ -50,77 +55,69 @@ def generate_ai_art(recovery_score, additional_metrics=None):
     ]
 
     # Additional metric representations
-    metric_prompts = []
+    additional_prompt = ""
     if additional_metrics:
-        if 'sleep_quality' in additional_metrics:
-            sleep_quality = additional_metrics['sleep_quality']
-            metric_prompts.append(f"Represent sleep quality ({sleep_quality}%) with {'smooth' if sleep_quality > 70 else 'jagged'} wave-like patterns.")
-        if 'strain' in additional_metrics:
-            strain = additional_metrics['strain']
-            metric_prompts.append(f"Depict strain ({strain}%) with compact, intertwined lines.")
-        if 'hrv' in additional_metrics:
-            hrv = additional_metrics['hrv']
-            metric_prompts.append(f"Visualize HRV ({hrv}) with fluctuating rhythms in the artwork.")
+        for key, value in additional_metrics.items():
+            if key == 'sleep_quality':
+                additional_prompt += f" Represent sleep quality with {'soothing' if value > 7 else 'restless'} tones.\n"
+            elif key == 'strain':
+                additional_prompt += f" Depict strain levels with {'intense' if value > 5 else 'mild'} textures.\n"
+            elif key == 'hrv':
+                additional_prompt += f" Illustrate HRV with {'complex' if value > 50 else 'simple'} patterns.\n"
 
-    # Compile the full prompt
-    full_prompt = base_prompt + " " + color_prompt + " " + " ".join(pattern_prompt)
-    if metric_prompts:
-        full_prompt += " " + " ".join(metric_prompts)
+    # Combine all prompts
+    full_prompt = f"{base_prompt}\n{color_prompt}\n" + "\n".join(pattern_prompt) + "\n" + additional_prompt
 
-    logging.debug(f"AI Art Generation Prompt: {full_prompt}")
-
-    # Call OpenAI's API to generate the image
+    # Generate image using OpenAI's DALL-E
     try:
-        response = client.Image.create(
+        response = openai_client.Image.create(
             prompt=full_prompt,
             n=1,
             size="512x512"
         )
         image_url = response['data'][0]['url']
-        logging.debug(f"Generated Image URL: {image_url}")
+        logging.debug(f"Generated image URL: {image_url}")
 
-        # Fetch the image content
+        # Fetch the image and encode it in base64
         image_resp = requests.get(image_url)
         image_resp.raise_for_status()
-        image_bytes = image_resp.content
-
-        # Encode image in base64
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        image_base64 = base64.b64encode(image_resp.content).decode('utf-8')
         return image_base64
 
     except Exception as e:
         logging.error(f"Error generating AI art: {e}")
         return None
 
-def generate_state():
-    return secrets.token_urlsafe(16)
-
 def main():
-    st.title("Health Art Generator")
-
-    # Initialize session state variables
-    if 'oauth_state' not in st.session_state:
-        st.session_state.oauth_state = ''
+    # Initialize oauth_token if not present
     if 'oauth_token' not in st.session_state:
         st.session_state.oauth_token = None
+
+    # Initialize oauth_states if not present
+    if 'oauth_states' not in st.session_state:
+        st.session_state.oauth_states = {}
 
     # Retrieve query parameters
     query_params = st.query_params
 
+    # Handle OAuth callback
     if 'code' in query_params and 'state' in query_params:
-        received_code = query_params['code'][0]
-        received_state = query_params['state'][0]
+        received_code = query_params.get('code', [None])[0]
+        received_state = query_params.get('state', [None])[0]
+
+        logging.debug(f"Received code: {received_code}")
+        logging.debug(f"Received state: {received_state}")
 
         if not received_state:
             st.error("State parameter is missing.")
             logging.error("State parameter is missing in the callback.")
-        elif received_state != st.session_state.oauth_state:
+        elif received_state not in st.session_state.oauth_states:
             st.error("Invalid state parameter. Potential CSRF attack detected.")
-            logging.error(f"Invalid state parameter: received {received_state}, expected {st.session_state.oauth_state}")
+            logging.error(f"Invalid state parameter: received {received_state}, expected one of {list(st.session_state.oauth_states.keys())}")
             st.session_state.oauth_token = None
         else:
+            # Valid state; proceed to exchange code for token
             try:
-                # Exchange authorization code for access token
                 token_data = {
                     'grant_type': 'authorization_code',
                     'code': received_code,
@@ -134,6 +131,9 @@ def main():
                 token = token_response.json()
                 st.session_state.oauth_token = token
                 st.success("Successfully authenticated with WHOOP!")
+
+                # Clean up used state
+                del st.session_state.oauth_states[received_state]
 
                 # Clear query parameters to prevent re-processing
                 st.experimental_set_query_params()
@@ -150,39 +150,32 @@ def main():
     # If not authenticated, show login button
     if not st.session_state.oauth_token:
         if st.button("Log in with WHOOP"):
-            if not st.session_state.oauth_state:
-                # Generate and store state
-                oauth_state = generate_state()
-                st.session_state.oauth_state = oauth_state
-                logging.debug(f"Generated OAuth state: {oauth_state}")
+            # Generate and store state
+            oauth_state = generate_state()
+            st.session_state.oauth_states[oauth_state] = True  # Mark state as valid
+            logging.debug(f"Generated OAuth state: {oauth_state}")
 
-                # Construct authorization URL
-                auth_url = (
-                    f"{AUTH_URL}?"
-                    f"client_id={CLIENT_ID}&"
-                    f"response_type=code&"
-                    f"redirect_uri={REDIRECT_URI}&"
-                    f"state={oauth_state}"
-                )
-                logging.debug(f"Authorization URL: {auth_url}")
+            # Construct authorization URL
+            auth_url = (
+                f"{AUTH_URL}?"
+                f"client_id={CLIENT_ID}&"
+                f"response_type=code&"
+                f"redirect_uri={REDIRECT_URI}&"
+                f"state={oauth_state}"
+            )
+            logging.debug(f"Authorization URL: {auth_url}")
 
-                # Provide a clickable link
-                st.markdown(f"Please [authorize]({auth_url}) to continue.", unsafe_allow_html=True)
-
-                # Optional: Uncomment the following lines if you want to redirect automatically
-                # Ensure proper indentation and string encapsulation
-
-                # import streamlit.components.v1 as components
-                # components.html(
-                #     f"""
-                #     <script>
-                #         window.location.href = '{auth_url}';
-                #     </script>
-                #     """,
-                #     height=0,
-                # )
+            # Provide a clickable link
+            st.markdown(f"Please [authorize]({auth_url}) to continue.", unsafe_allow_html=True)
 
     else:
+        st.write("You are already authenticated.")
+        # Optional: Add logout functionality
+        if st.button("Logout"):
+            st.session_state.oauth_token = None
+            st.success("Logged out successfully.")
+
+        # Fetch WHOOP data and generate AI art
         try:
             # Use the access token to fetch WHOOP data
             headers = {
@@ -231,13 +224,6 @@ def main():
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
             logging.error(f"Unexpected error: {str(e)}")
-
-        # Optional: Logout button
-        if st.session_state.oauth_token:
-            if st.button("Logout"):
-                st.session_state.oauth_token = None
-                st.session_state.oauth_state = ''
-                st.success("Logged out successfully.")
 
 if __name__ == "__main__":
     main()
