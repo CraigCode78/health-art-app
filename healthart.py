@@ -19,7 +19,7 @@ API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # OpenAI API Configuration
 # Note: API keys are hard-coded for testing purposes. Ensure to secure them in production.
-client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))  # Updated to use environment variable
+client = OpenAI(api_key='OPENAI_API_KEY')
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
