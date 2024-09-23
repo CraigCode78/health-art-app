@@ -4,3 +4,5 @@ Flask
    requests-oauthlib
    Pillow
    numpy
+   streamlit
+   openai
