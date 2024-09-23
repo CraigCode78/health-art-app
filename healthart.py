@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 # WHOOP API Configuration
 CLIENT_ID = st.secrets["CLIENT_ID"]
 CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
-REDIRECT_URI = 'http://localhost:8501/callback'
+REDIRECT_URI = 'https://healthartv1.streamlit.app/callback'
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
