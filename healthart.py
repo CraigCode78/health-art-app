@@ -103,6 +103,14 @@ def generate_ai_art(recovery_score, additional_metrics=None):
 def main():
     st.title("Health Art Generator")
 
+    query_params = st.experimental_get_query_params()
+    if 'code' in query_params:
+        code = query_params['code'][0]
+        whoop = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI)
+        token = whoop.fetch_token(TOKEN_URL, client_secret=CLIENT_SECRET, code=code)
+        st.session_state['oauth_token'] = token
+        st.experimental_rerun()
+
     if 'oauth_token' not in st.session_state:
         st.session_state['oauth_token'] = None
 
