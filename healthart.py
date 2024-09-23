@@ -9,15 +9,15 @@ import base64
 logging.basicConfig(level=logging.DEBUG)
 
 # WHOOP API Configuration
-CLIENT_ID = st.secrets["whoop_client_id"]
-CLIENT_SECRET = st.secrets["whoop_client_secret"]
+CLIENT_ID = st.secrets["CLIENT_ID"]
+CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
 REDIRECT_URI = 'http://localhost:8501/callback'
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # OpenAI API Configuration
-client = OpenAI(api_key=st.secrets["openai_api_key"])
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def token_updater(token):
     st.session_state['oauth_token'] = token
