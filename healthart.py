@@ -161,18 +161,20 @@ def main():
             # Option 1: Provide a clickable link
             st.markdown(f"Please [authorize]({auth_url}) to continue.", unsafe_allow_html=True)
 
-            # Option 2: Automatically redirect using JavaScript
-            # Uncomment the following lines if you prefer automatic redirection
-            """
-            components.html(
-                f"""
-                <script>
-                    window.location.href = "{auth_url}";
-                </script>
-                """,
-                height=0,
-            )
-            """
+      # Optionally, auto-open the authorization URL using JavaScript
+    # Uncomment the following lines if you want to redirect automatically
+    """
+    import streamlit.components.v1 as components
+    components.html(
+        components.html(
+            f"""
+            <script>
+                window.location.href = '{auth_url}';
+            </script>
+            """,
+            height=0,
+        )
+    """
     else:
         try:
             # Use the access token to fetch WHOOP data
