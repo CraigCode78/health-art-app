@@ -160,11 +160,11 @@ def main():
             """
             import streamlit.components.v1 as components
             components.html(
-                f"""
+                f'''
                 <script>
                     window.location.href = "{auth_url}";
                 </script>
-                """,
+                ''',
                 height=0,
             )
             """
