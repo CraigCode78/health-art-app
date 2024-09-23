@@ -4,7 +4,6 @@ import logging
 from openai import OpenAI
 import secrets
 import base64
-import streamlit.components.v1 as components
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -106,7 +105,7 @@ def main():
         st.session_state.oauth_token = None
 
     # Retrieve query parameters
-    query_params = st.query_params  # Replaced experimental_get_query_params
+    query_params = st.query_params
 
     if 'code' in query_params and 'state' in query_params:
         received_code = query_params['code'][0]
@@ -170,19 +169,18 @@ def main():
                 # Provide a clickable link
                 st.markdown(f"Please [authorize]({auth_url}) to continue.", unsafe_allow_html=True)
 
-                # Optionally, auto-open the authorization URL using JavaScript
-                # Uncomment the following lines if you want to redirect automatically
+                # Optional: Uncomment the following lines if you want to redirect automatically
                 # Ensure proper indentation and string encapsulation
-                
-                components.html(
-                    f"""
-                    <script>
-                        window.location.href = '{auth_url}';
-                    </script>
-                    """,
-                    height=0,
-                )
-                
+
+                # import streamlit.components.v1 as components
+                # components.html(
+                #     f"""
+                #     <script>
+                #         window.location.href = '{auth_url}';
+                #     </script>
+                #     """,
+                #     height=0,
+                # )
 
     else:
         try:
