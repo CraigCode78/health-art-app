@@ -1,9 +1,8 @@
 import streamlit as st
-from requests_oauthlib import OAuth2Session
 import requests
 import logging
-from openai import OpenAI, OpenAIError, APIError, APIConnectionError, RateLimitError
-import base64
+from openai import OpenAI
+import secrets
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,24 +17,6 @@ API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # OpenAI API Configuration
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-def token_updater(token):
-    st.session_state['oauth_token'] = token
-
-def get_whoop_session():
-    token = st.session_state.get('oauth_token')
-    if not token:
-        return None
-    return OAuth2Session(
-        CLIENT_ID,
-        token=token,
-        auto_refresh_url=TOKEN_URL,
-        auto_refresh_kwargs={
-            'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET
-        },
-        token_updater=token_updater
-    )
 
 def generate_ai_art(recovery_score, additional_metrics=None):
     """
@@ -100,15 +81,23 @@ def generate_ai_art(recovery_score, additional_metrics=None):
         logging.error(f"Error generating art: {str(e)}")
         return None
 
+def generate_state():
+    return secrets.token_urlsafe(16)
+
 def main():
     st.title("Health Art Generator")
 
     # Check for OAuth callback
     query_params = st.query_params
-    if 'code' in query_params:
+    if 'code' in query_params and 'state' in query_params:
         try:
             code = query_params['code']
-            token_url = TOKEN_URL
+            received_state = query_params['state']
+            
+            # Verify state
+            if received_state != st.session_state.get('oauth_state'):
+                raise ValueError("Invalid state parameter")
+            
             token_data = {
                 'grant_type': 'authorization_code',
                 'code': code,
@@ -116,15 +105,21 @@ def main():
                 'client_id': CLIENT_ID,
                 'client_secret': CLIENT_SECRET
             }
-            token_response = requests.post(token_url, data=token_data)
+            token_response = requests.post(TOKEN_URL, data=token_data)
             token_response.raise_for_status()
             token = token_response.json()
             st.session_state['oauth_token'] = token
             st.success("Successfully authenticated with WHOOP!")
-            st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
-        except Exception as e:
+            st.rerun()
+        except requests.exceptions.RequestException as e:
             st.error(f"Error during authentication: {str(e)}")
             logging.error(f"Authentication error: {str(e)}")
+            if hasattr(e, 'response'):
+                logging.error(f"Response content: {e.response.content}")
+            st.session_state['oauth_token'] = None
+        except ValueError as e:
+            st.error(str(e))
+            logging.error(str(e))
             st.session_state['oauth_token'] = None
 
     if 'oauth_token' not in st.session_state:
@@ -133,15 +128,16 @@ def main():
     if st.session_state['oauth_token'] is None:
         st.write("Please log in to WHOOP to continue.")
         if st.button("Log in"):
-            auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}"
+            state = generate_state()
+            st.session_state['oauth_state'] = state
+            auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}&state={state}"
             st.markdown(f"[Click here to authorize]({auth_url})")
     else:
         # Proceed with fetching WHOOP data and generating art
         try:
-            whoop_session = requests.Session()
-            whoop_session.headers.update({"Authorization": f"Bearer {st.session_state['oauth_token']['access_token']}"})
+            headers = {"Authorization": f"Bearer {st.session_state['oauth_token']['access_token']}"}
             
-            recovery_resp = whoop_session.get(f"{API_BASE_URL}/v1/recovery")
+            recovery_resp = requests.get(f"{API_BASE_URL}/v1/recovery", headers=headers)
             recovery_resp.raise_for_status()
             recovery_data = recovery_resp.json()
             logging.debug(f"Recovery data: {recovery_data}")
@@ -157,9 +153,14 @@ def main():
                 st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
                 st.write(f"Recovery Score: {recovery_score}")
 
-        except Exception as e:
-            st.error(f"Error fetching WHOOP data or generating art: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error fetching WHOOP data: {str(e)}")
             logging.error(f"Error: {str(e)}")
+            if hasattr(e, 'response'):
+                logging.error(f"Response content: {e.response.content}")
+        except Exception as e:
+            st.error(f"Unexpected error: {str(e)}")
+            logging.error(f"Unexpected error: {str(e)}")
 
 if __name__ == "__main__":
     main()
