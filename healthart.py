@@ -1,160 +1,200 @@
-import streamlit as st
-from streamlit_oauth import OAuth2Component
-import requests
-import base64
-import logging
-import openai
 import os
+from flask import Flask, redirect, request, session, jsonify, url_for, render_template
+from requests_oauthlib import OAuth2Session
+import requests
+import logging
+from openai import OpenAI, OpenAIError, APIError, APIConnectionError, RateLimitError
+import base64
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Updated to use environment variable
+
+# WHOOP API Configuration
+CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID')  # Updated to use environment variable
+CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET')  # Updated to use environment variable
+REDIRECT_URI = 'http://127.0.0.1:3030/callback'
+AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
+TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
+API_BASE_URL = 'https://api.prod.whoop.com/developer'
+
+# OpenAI API Configuration
+# Note: API keys are hard-coded for testing purposes. Ensure to secure them in production.
+client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))  # Updated to use environment variable
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.DEBUG)
 
-# Load OAuth and API configuration from secrets
-CLIENT_ID = st.secrets["CLIENT_ID"]
-CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
-REDIRECT_URI = st.secrets["REDIRECT_URI"]
-AUTH_URL = st.secrets["AUTH_URL"]
-TOKEN_URL = st.secrets["TOKEN_URL"]
-REFRESH_TOKEN_URL = st.secrets["REFRESH_TOKEN_URL"]
-REVOKE_TOKEN_URL = st.secrets["REVOKE_TOKEN_URL"]
-SCOPE = st.secrets["SCOPE"]
-API_BASE_URL = st.secrets["API_BASE_URL"]
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
+def token_updater(token):
+    session['oauth_token'] = token
 
-if OPENAI_API_KEY:
-    openai.api_key = OPENAI_API_KEY
-
-def generate_ai_art(recovery_score, additional_metrics):
-    """
-    Generate AI art based on recovery score and additional metrics.
-    
-    Args:
-        recovery_score (float): The recovery score from WHOOP data.
-        additional_metrics (dict): Additional metrics like sleep_quality, strain, hrv.
-    
-    Returns:
-        str: Base64-encoded image string or None if generation fails.
-    """
-    try:
-        prompt = (
-            f"Create an abstract art piece representing a recovery score of {recovery_score} "
-            f"with metrics: {additional_metrics}."
-        )
-        logging.debug(f"AI Art Generation Prompt: {prompt}")
-
-        # Example using OpenAI's DALL-E API
-        response = openai.Image.create(
-            prompt=prompt,
-            n=1,
-            size="512x512"
-        )
-        image_url = response['data'][0]['url']
-        logging.debug(f"AI Art Image URL: {image_url}")
-
-        # Fetch the image and encode it in base64
-        image_resp = requests.get(image_url)
-        image_resp.raise_for_status()
-        encoded_image = base64.b64encode(image_resp.content).decode('utf-8')
-        logging.debug("AI Art generation successful.")
-        return encoded_image
-    except Exception as e:
-        logging.error(f"AI Art generation failed: {e}")
+def get_whoop_session():
+    token = session.get('oauth_token')
+    if not token:
         return None
-
-def main():
-    st.title("HealthArt - WHOOP OAuth Integration")
-
-    # Initialize OAuth2Component
-    oauth2 = OAuth2Component(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        authorize_url=AUTH_URL,
-        token_url=TOKEN_URL,
-        refresh_url=REFRESH_TOKEN_URL,
-        revoke_url=REVOKE_TOKEN_URL,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-        prompt="consent"  # Optional: Forces consent screen every time
+    return OAuth2Session(
+        CLIENT_ID,
+        token=token,
+        auto_refresh_url=TOKEN_URL,
+        auto_refresh_kwargs={
+            'client_id': CLIENT_ID,
+            'client_secret': CLIENT_SECRET
+        },
+        token_updater=token_updater
     )
 
-    # Check if the user is authenticated
-    if 'oauth_token' not in st.session_state:
-        # If not authenticated, show the authorize button
-        result = oauth2.authorize_button("Authorize with WHOOP")
-        if result and 'access_token' in result:
-            st.session_state.oauth_token = result.get('access_token')
-            st.success("Successfully authenticated with WHOOP!")
-            logging.debug(f"Access Token: {st.session_state.oauth_token}")
-            st.experimental_rerun()
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/login')
+def login():
+    whoop = OAuth2Session(
+        CLIENT_ID,
+        redirect_uri=REDIRECT_URI, 
+        scope=['read:profile', 'read:recovery', 'read:workout', 'read:sleep']
+    )
+    authorization_url, state = whoop.authorization_url(AUTH_URL)
+    session['oauth_state'] = state
+    logging.info(f"Authorization URL: {authorization_url}")
+    logging.info(f"State: {state}")
+    return redirect(authorization_url)
+
+@app.route('/callback')
+def callback():
+    whoop = OAuth2Session(
+        CLIENT_ID,
+        state=session.get('oauth_state'),
+        redirect_uri=REDIRECT_URI
+    )
+    try:
+        # Modify fetch_token to use client_secret_post by setting auth to None
+        token = whoop.fetch_token(
+            TOKEN_URL,
+            authorization_response=request.url,
+            include_client_id=True,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            method='POST',
+            auth=None,  # Disable client_secret_basic
+            state=session.get('oauth_state')
+        )
+    except Exception as e:
+        logging.error(f"Error fetching token: {e}")
+        return jsonify({"error": "Authentication failed"}), 500
+
+    token_updater(token)
+    return redirect(url_for('health_art'))
+
+def generate_ai_art(recovery_score, additional_metrics=None):
+    """
+    Generate abstract AI art based on health data using OpenAI's DALL-E.
+
+    Args:
+        recovery_score (float): The primary recovery score (0-100).
+        additional_metrics (dict): Optional additional health metrics.
+
+    Returns:
+        str: Base64-encoded image data or None if generation fails.
+    """
+    # Base prompt structure
+    base_prompt = "Create an abstract digital artwork representing health data with the following elements:"
+
+    # Color representation based on recovery score
+    if recovery_score > 80:
+        color_prompt = f"Dominant colors are vibrant greens and blues, representing high recovery ({recovery_score}% recovery score)."
+    elif recovery_score > 50:
+        color_prompt = f"Mix of warm yellows and cool blues, balancing moderate recovery ({recovery_score}% recovery score)."
     else:
-        # If authenticated, display token details and provide options
-        st.write("You are already authenticated.")
+        color_prompt = f"Subdued reds and greys dominate, indicating low recovery ({recovery_score}% recovery score)."
 
-        # Display the access token (for debugging purposes)
-        # In production, avoid displaying sensitive information
-        st.json({"access_token": st.session_state['oauth_token']})
+    # Pattern and shape elements
+    pattern_prompt = [
+        "Incorporate flowing, organic shapes to represent flexibility and adaptability.",
+        "Use repeating geometric patterns, with their regularity affected by the recovery score.",
+        f"{'Dense' if recovery_score > 70 else 'Sparse'} network of interconnected lines symbolizing bodily systems.",
+        f"Abstract {'circular' if recovery_score > 60 else 'angular'} forms representing energy levels."
+    ]
 
-        # Fetch WHOOP data and generate AI art
-        try:
-            # Use the access token to fetch WHOOP data
-            headers = {
-                'Authorization': f"Bearer {st.session_state.oauth_token}"
-            }
-            logging.debug(f"Fetching WHOOP data with headers: {headers}")
-            recovery_resp = requests.get(f"{API_BASE_URL}/v1/recovery", headers=headers)
-            recovery_resp.raise_for_status()
-            recovery_data = recovery_resp.json()
-            logging.debug(f"Recovery data: {recovery_data}")
+    # Additional metric representations
+    metric_prompts = []
+    if additional_metrics:
+        if 'sleep_quality' in additional_metrics:
+            sleep_quality = additional_metrics['sleep_quality']
+            metric_prompts.append(f"Represent sleep quality ({sleep_quality}%) with {'smooth' if sleep_quality > 70 else 'jagged'} wave-like patterns.")
+        if 'strain' in additional_metrics:
+            strain = additional_metrics['strain']
+            metric_prompts.append(f"Illustrate physical strain ({strain}/21) with {'bold' if strain > 15 else 'subtle'} textural elements.")
+        if 'hrv' in additional_metrics:
+            hrv = additional_metrics['hrv']
+            metric_prompts.append(f"Depict heart rate variability ({hrv} ms) using {'intricate' if hrv > 50 else 'simple'} fractal-like structures.")
 
-            # Extract recovery score
-            if 'records' in recovery_data and len(recovery_data['records']) > 0:
-                recovery_score = recovery_data['records'][0]['score']['recovery_score']
-                logging.debug(f"Recovery Score: {recovery_score}")
-            else:
-                st.error("No recovery data available.")
-                logging.error("No recovery data found in the response.")
-                recovery_score = None
+    # Combine all elements into a final prompt
+    final_prompt = f"{base_prompt} {color_prompt} {' '.join(pattern_prompt)} {' '.join(metric_prompts)} The overall composition should be harmonious yet dynamic, clearly reflecting the health status through abstract visual elements."
 
-            # Optionally, extract additional metrics if available
-            additional_metrics = {}
-            if 'records' in recovery_data and len(recovery_data['records']) > 0:
-                metrics = recovery_data['records'][0].get('metrics', {})
-                additional_metrics = {
-                    key: value for key, value in metrics.items() if key in ['sleep_quality', 'strain', 'hrv']
-                }
+    # Use OpenAI's DALL-E to generate the art
+    try:
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=final_prompt,
+            n=1,
+            size="1024x1024",
+            quality="standard",
+            response_format="b64_json"
+        )
+        logging.debug(f"OpenAI response: {response}")
+        image_data = response.data[0].b64_json
+        return image_data
+    except Exception as e:
+        logging.error(f"Error generating art: {str(e)}")
+        return None
 
-            # Generate AI art based on recovery score and additional metrics
-            if recovery_score is not None:
-                art_base64 = generate_ai_art(recovery_score, additional_metrics)
+@app.route('/health_art')
+def health_art():
+    whoop = get_whoop_session()
+    if not whoop:
+        return redirect(url_for('login'))
 
-                if art_base64 is None:
-                    st.write("Failed to generate AI art.")
-                else:
-                    st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
-                    st.write(f"**Recovery Score:** {recovery_score}")
-            else:
-                st.write("Cannot generate AI art without a valid recovery score.")
+    # Change the HTTP method from POST to GET as per WHOOP API documentation
+    try:
+        recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
+        recovery_resp.raise_for_status()
+        recovery_data = recovery_resp.json()
+        logging.debug(f"Recovery data: {recovery_data}")
+    except Exception as e:
+        logging.error(f"Error fetching recovery data: {str(e)}")
+        return jsonify({"error": "Failed to fetch recovery data"}), 500
 
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching WHOOP data: {str(e)}")
-            logging.error(f"Error fetching WHOOP data: {str(e)}")
-        except Exception as e:
-            st.error(f"Unexpected error: {str(e)}")
-            logging.error(f"Unexpected error: {str(e)}")
+    # Extract the recovery score from the response
+    try:
+        recovery_score = recovery_data['records'][0]['score']['recovery_score']
+        logging.debug(f"Recovery Score: {recovery_score}")
+    except (KeyError, IndexError) as e:
+        logging.error(f"Error extracting recovery score: {str(e)}")
+        return jsonify({"error": "Failed to extract recovery score"}), 500
 
-        # Logout functionality
-        if st.button("Logout"):
-            oauth2.revoke_token(st.session_state.oauth_token)
-            del st.session_state.oauth_token
-            st.success("Logged out successfully.")
-            st.experimental_set_query_params()
-            st.experimental_rerun()
+    # Generate the AI art
+    art_base64 = generate_ai_art(recovery_score)
 
-if __name__ == "__main__":
-    main()
+    if art_base64 is None:
+        logging.error("Failed to generate AI art.")
+        return jsonify({"error": "Failed to generate AI art"}), 500
+
+    # Render the HTML template with the art and recovery score
+    return render_template('health_art.html', recovery_score=recovery_score, art_base64=art_base64)
+
+@app.route('/favicon.ico')
+def favicon():
+    return redirect(url_for('static', filename='favicon.ico'))
+
+@app.errorhandler(404)
+def page_not_found(e):
+    logging.error(f"Page not found: {e}")
+    return jsonify(error="Page not found"), 404
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logging.error(f"An unexpected error occurred: {e}")
+    return jsonify(error=str(e)), 500
+
+if __name__ == '__main__':
+    app.run()

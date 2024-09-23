@@ -1,8 +1,3 @@
-Flask
-   requests
-   python-dotenv
-   requests-oauthlib
-   Pillow
-   numpy
-   streamlit
-   openai
+      Flask==2.0.1
+      requests_oauthlib==1.3.0
+      openai==0.27.0
