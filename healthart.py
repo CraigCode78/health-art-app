@@ -87,55 +87,51 @@ def generate_state():
 def main():
     st.title("Health Art Generator")
 
+    # Initialize session state
+    if 'oauth_state' not in st.session_state:
+        st.session_state.oauth_state = generate_state()
+    if 'oauth_token' not in st.session_state:
+        st.session_state.oauth_token = None
+
     # Check for OAuth callback
     query_params = st.query_params
     if 'code' in query_params and 'state' in query_params:
-        try:
-            code = query_params['code']
-            received_state = query_params['state']
-            
-            # Verify state
-            if received_state != st.session_state.get('oauth_state'):
-                raise ValueError("Invalid state parameter")
-            
-            token_data = {
-                'grant_type': 'authorization_code',
-                'code': code,
-                'redirect_uri': REDIRECT_URI,
-                'client_id': CLIENT_ID,
-                'client_secret': CLIENT_SECRET
-            }
-            token_response = requests.post(TOKEN_URL, data=token_data)
-            token_response.raise_for_status()
-            token = token_response.json()
-            st.session_state['oauth_token'] = token
-            st.success("Successfully authenticated with WHOOP!")
-            st.rerun()
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error during authentication: {str(e)}")
-            logging.error(f"Authentication error: {str(e)}")
-            if hasattr(e, 'response'):
-                logging.error(f"Response content: {e.response.content}")
-            st.session_state['oauth_token'] = None
-        except ValueError as e:
-            st.error(str(e))
-            logging.error(str(e))
-            st.session_state['oauth_token'] = None
+        received_state = query_params['state']
+        if received_state == st.session_state.oauth_state:
+            try:
+                code = query_params['code']
+                token_data = {
+                    'grant_type': 'authorization_code',
+                    'code': code,
+                    'redirect_uri': REDIRECT_URI,
+                    'client_id': CLIENT_ID,
+                    'client_secret': CLIENT_SECRET
+                }
+                token_response = requests.post(TOKEN_URL, data=token_data)
+                token_response.raise_for_status()
+                st.session_state.oauth_token = token_response.json()
+                st.success("Successfully authenticated with WHOOP!")
+                st.rerun()
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error during authentication: {str(e)}")
+                logging.error(f"Authentication error: {str(e)}")
+                if hasattr(e, 'response'):
+                    logging.error(f"Response content: {e.response.content}")
+                st.session_state.oauth_token = None
+        else:
+            st.error("Invalid state parameter")
+            logging.error("Invalid state parameter")
+            st.session_state.oauth_token = None
 
-    if 'oauth_token' not in st.session_state:
-        st.session_state['oauth_token'] = None
-
-    if st.session_state['oauth_token'] is None:
+    if st.session_state.oauth_token is None:
         st.write("Please log in to WHOOP to continue.")
         if st.button("Log in"):
-            state = generate_state()
-            st.session_state['oauth_state'] = state
-            auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}&state={state}"
+            auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}&state={st.session_state.oauth_state}"
             st.markdown(f"[Click here to authorize]({auth_url})")
     else:
         # Proceed with fetching WHOOP data and generating art
         try:
-            headers = {"Authorization": f"Bearer {st.session_state['oauth_token']['access_token']}"}
+            headers = {"Authorization": f"Bearer {st.session_state.oauth_token['access_token']}"}
             
             recovery_resp = requests.get(f"{API_BASE_URL}/v1/recovery", headers=headers)
             recovery_resp.raise_for_status()
