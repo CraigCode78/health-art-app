@@ -4,6 +4,7 @@ import logging
 from openai import OpenAI
 import secrets
 import base64
+import streamlit.components.v1 as components
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -96,7 +97,7 @@ def main():
         st.session_state.oauth_token = None
 
     # Retrieve query parameters
-    query_params = st.experimental_get_query_params()
+    query_params = st.query_params  # Updated to use st.query_params
 
     # Handle OAuth callback
     if 'code' in query_params and 'state' in query_params:
@@ -108,7 +109,7 @@ def main():
             logging.error("State parameter is missing in the callback.")
         elif received_state != st.session_state.oauth_state:
             st.error("Invalid state parameter. Potential CSRF attack detected.")
-            logging.error("Invalid state parameter")
+            logging.error(f"Invalid state parameter: received {received_state}, expected {st.session_state.oauth_state}")
             st.session_state.oauth_token = None
         else:
             try:
@@ -120,62 +121,65 @@ def main():
                     'client_id': CLIENT_ID,
                     'client_secret': CLIENT_SECRET
                 }
+                logging.debug(f"Token request data: {token_data}")
                 token_response = requests.post(TOKEN_URL, data=token_data)
                 token_response.raise_for_status()
                 token = token_response.json()
                 st.session_state.oauth_token = token
                 st.success("Successfully authenticated with WHOOP!")
-                st.experimental_set_query_params()  # Clear query parameters
-                st.experimental_rerun()  # Refresh the app state
+
+                # Clear query parameters to prevent re-processing
+                st.experimental_set_query_params()
+
             except requests.exceptions.RequestException as e:
-                st.error(f"Error during authentication: {str(e)}")
-                logging.error(f"Authentication error: {str(e)}")
-                if hasattr(e, 'response') and e.response is not None:
+                st.error(f"Error fetching token: {str(e)}")
+                logging.error(f"Error fetching token: {str(e)}")
+                if e.response is not None:
                     logging.error(f"Response content: {e.response.content}")
-                st.session_state.oauth_token = None
+            except Exception as e:
+                st.error(f"Unexpected error: {str(e)}")
+                logging.error(f"Unexpected error: {str(e)}")
 
     # If not authenticated, show login button
-    if st.session_state.oauth_token is None:
-        st.write("Please log in to WHOOP to continue.")
-        if st.button("Log in"):
-            # Generate and store state parameter
-            state = generate_state()
-            st.session_state.oauth_state = state
-            logging.debug(f"Generated OAuth state: {state}")
+    if not st.session_state.oauth_token:
+        if st.button("Log in with WHOOP"):
+            # Generate and store state
+            oauth_state = generate_state()
+            st.session_state.oauth_state = oauth_state
+            logging.debug(f"Generated OAuth state: {oauth_state}")
 
-            # Build authorization URL with state parameter
+            # Construct authorization URL
             auth_url = (
-                f"{AUTH_URL}?client_id={CLIENT_ID}"
-                f"&response_type=code"
-                f"&redirect_uri={REDIRECT_URI}"
-                f"&state={state}"
+                f"{AUTH_URL}?"
+                f"client_id={CLIENT_ID}&"
+                f"response_type=code&"
+                f"redirect_uri={REDIRECT_URI}&"
+                f"state={oauth_state}"
             )
             logging.debug(f"Authorization URL: {auth_url}")
 
-            # Provide a clickable link for the user to authorize
-            st.markdown(f"[Click here to authorize with WHOOP]({auth_url})")
+            # Option 1: Provide a clickable link
+            st.markdown(f"Please [authorize]({auth_url}) to continue.", unsafe_allow_html=True)
 
-            # Optionally, auto-open the authorization URL using JavaScript
-            # Uncomment the following lines if you want to redirect automatically
+            # Option 2: Automatically redirect using JavaScript
+            # Uncomment the following lines if you prefer automatic redirection
             """
-            import streamlit.components.v1 as components
             components.html(
-                f'''
+                f"""
                 <script>
                     window.location.href = "{auth_url}";
                 </script>
-                ''',
+                """,
                 height=0,
             )
             """
-
     else:
-        # Proceed with fetching WHOOP data and generating art
         try:
-            access_token = st.session_state.oauth_token['access_token']
-            headers = {"Authorization": f"Bearer {access_token}"}
-
-            # Fetch recovery data from WHOOP API
+            # Use the access token to fetch WHOOP data
+            headers = {
+                'Authorization': f"Bearer {st.session_state.oauth_token['access_token']}"
+            }
+            logging.debug(f"Fetching WHOOP data with headers: {headers}")
             recovery_resp = requests.get(f"{API_BASE_URL}/v1/recovery", headers=headers)
             recovery_resp.raise_for_status()
             recovery_data = recovery_resp.json()
@@ -218,6 +222,13 @@ def main():
         except Exception as e:
             st.error(f"Unexpected error: {str(e)}")
             logging.error(f"Unexpected error: {str(e)}")
+
+    # Optional: Logout button
+    if st.session_state.oauth_token:
+        if st.button("Logout"):
+            st.session_state.oauth_token = None
+            st.session_state.oauth_state = ''
+            st.success("Logged out successfully.")
 
 if __name__ == "__main__":
     main()
