@@ -12,7 +12,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Updated to use environmen
 # WHOOP API Configuration
 CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID')  # Updated to use environment variable
 CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET')  # Updated to use environment variable
-REDIRECT_URI = 'http://127.0.0.1:3030/callback'
+REDIRECT_URI = 'http://health-art-app.vercel.app/callback'
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
