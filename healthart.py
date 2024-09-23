@@ -22,11 +22,11 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 def generate_ai_art(recovery_score, additional_metrics=None):
     """
     Generate abstract AI art based on health data using OpenAI's DALL-E.
-
+    
     Args:
         recovery_score (float): The primary recovery score (0-100).
         additional_metrics (dict): Optional additional health metrics.
-
+    
     Returns:
         str: Base64-encoded image data or None if generation fails.
     """
@@ -83,35 +83,39 @@ def generate_ai_art(recovery_score, additional_metrics=None):
         return None
 
 def generate_state():
-    return secrets.token_urlsafe(16)
+    """Generate a secure random state string for OAuth."""
+    return secrets.token_urlsafe(16)  # Generates a 22-character URL-safe string
 
 def main():
     st.title("Health Art Generator")
 
-    # Initialize session state
+    # Initialize session state variables
     if 'oauth_state' not in st.session_state:
-        st.session_state.oauth_state = generate_state()
+        st.session_state.oauth_state = ''
     if 'oauth_token' not in st.session_state:
         st.session_state.oauth_token = None
 
     # Retrieve query parameters
-    query_params = st.query_params
+    query_params = st.experimental_get_query_params()
 
     # Handle OAuth callback
     if 'code' in query_params and 'state' in query_params:
+        received_code = query_params['code'][0]
         received_state = query_params['state'][0]
-        expected_state = st.session_state.get('oauth_state')
 
-        if received_state != expected_state:
+        if not received_state:
+            st.error("State parameter is missing.")
+            logging.error("State parameter is missing in the callback.")
+        elif received_state != st.session_state.oauth_state:
             st.error("Invalid state parameter. Potential CSRF attack detected.")
             logging.error("Invalid state parameter")
             st.session_state.oauth_token = None
         else:
             try:
-                code = query_params['code'][0]
+                # Exchange authorization code for access token
                 token_data = {
                     'grant_type': 'authorization_code',
-                    'code': code,
+                    'code': received_code,
                     'redirect_uri': REDIRECT_URI,
                     'client_id': CLIENT_ID,
                     'client_secret': CLIENT_SECRET
@@ -121,7 +125,8 @@ def main():
                 token = token_response.json()
                 st.session_state.oauth_token = token
                 st.success("Successfully authenticated with WHOOP!")
-                st.rerun()  # Trigger a rerun to update the UI
+                st.experimental_set_query_params()  # Clear query parameters
+                st.experimental_rerun()  # Refresh the app state
             except requests.exceptions.RequestException as e:
                 st.error(f"Error during authentication: {str(e)}")
                 logging.error(f"Authentication error: {str(e)}")
@@ -133,26 +138,57 @@ def main():
     if st.session_state.oauth_token is None:
         st.write("Please log in to WHOOP to continue.")
         if st.button("Log in"):
-            # Regenerate state for each login attempt to enhance security
-            st.session_state.oauth_state = generate_state()
+            # Generate and store state parameter
+            state = generate_state()
+            st.session_state.oauth_state = state
+            logging.debug(f"Generated OAuth state: {state}")
+
+            # Build authorization URL with state parameter
             auth_url = (
-                f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}&state={st.session_state.oauth_state}"
+                f"{AUTH_URL}?client_id={CLIENT_ID}"
+                f"&response_type=code"
+                f"&redirect_uri={REDIRECT_URI}"
+                f"&state={state}"
             )
-            st.markdown(f"[Click here to authorize]({auth_url})")
+            logging.debug(f"Authorization URL: {auth_url}")
+
+            # Provide a clickable link for the user to authorize
+            st.markdown(f"[Click here to authorize with WHOOP]({auth_url})")
+
+            # Optionally, auto-open the authorization URL using JavaScript
+            # Uncomment the following lines if you want to redirect automatically
+            """
+            import streamlit.components.v1 as components
+            components.html(
+                f"""
+                <script>
+                    window.location.href = "{auth_url}";
+                </script>
+                """,
+                height=0,
+            )
+            """
+
     else:
         # Proceed with fetching WHOOP data and generating art
         try:
             access_token = st.session_state.oauth_token['access_token']
             headers = {"Authorization": f"Bearer {access_token}"}
-            
+
+            # Fetch recovery data from WHOOP API
             recovery_resp = requests.get(f"{API_BASE_URL}/v1/recovery", headers=headers)
             recovery_resp.raise_for_status()
             recovery_data = recovery_resp.json()
             logging.debug(f"Recovery data: {recovery_data}")
 
             # Extract recovery score
-            recovery_score = recovery_data['records'][0]['score']['recovery_score']
-            logging.debug(f"Recovery Score: {recovery_score}")
+            if 'records' in recovery_data and len(recovery_data['records']) > 0:
+                recovery_score = recovery_data['records'][0]['score']['recovery_score']
+                logging.debug(f"Recovery Score: {recovery_score}")
+            else:
+                st.error("No recovery data available.")
+                logging.error("No recovery data found in the response.")
+                recovery_score = None
 
             # Optionally, extract additional metrics if available
             additional_metrics = {}
@@ -163,13 +199,16 @@ def main():
                 }
 
             # Generate AI art based on recovery score and additional metrics
-            art_base64 = generate_ai_art(recovery_score, additional_metrics)
+            if recovery_score is not None:
+                art_base64 = generate_ai_art(recovery_score, additional_metrics)
 
-            if art_base64 is None:
-                st.write("Failed to generate AI art.")
+                if art_base64 is None:
+                    st.write("Failed to generate AI art.")
+                else:
+                    st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
+                    st.write(f"**Recovery Score:** {recovery_score}")
             else:
-                st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
-                st.write(f"Recovery Score: {recovery_score}")
+                st.write("Cannot generate AI art without a valid recovery score.")
 
         except requests.exceptions.RequestException as e:
             st.error(f"Error fetching WHOOP data: {str(e)}")
