@@ -104,7 +104,7 @@ def main():
     st.title("Health Art Generator")
 
     # Check for OAuth callback
-    query_params = st.query_params  # Updated from st.experimental_get_query_params()
+    query_params = st.query_params
     if 'code' in query_params:
         try:
             code = query_params['code']
@@ -121,7 +121,7 @@ def main():
             token = token_response.json()
             st.session_state['oauth_token'] = token
             st.success("Successfully authenticated with WHOOP!")
-            st.experimental_rerun()
+            st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
         except Exception as e:
             st.error(f"Error during authentication: {str(e)}")
             logging.error(f"Authentication error: {str(e)}")
@@ -133,49 +133,33 @@ def main():
     if st.session_state['oauth_token'] is None:
         st.write("Please log in to WHOOP to continue.")
         if st.button("Log in"):
-            whoop = OAuth2Session(
-                CLIENT_ID,
-                redirect_uri=REDIRECT_URI, 
-                scope=['read:profile', 'read:recovery', 'read:workout', 'read:sleep']
-            )
-            authorization_url, state = whoop.authorization_url(AUTH_URL)
-            st.session_state['oauth_state'] = state
-            st.write(f"Authorization URL: {authorization_url}")
-            st.markdown(f"[Click here to authorize]({authorization_url})")
+            auth_url = f"{AUTH_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={REDIRECT_URI}"
+            st.markdown(f"[Click here to authorize]({auth_url})")
     else:
-        whoop = get_whoop_session()
-        if not whoop:
-            st.write("Failed to get WHOOP session. Please log in again.")
-            st.session_state['oauth_token'] = None
-            st.experimental_rerun()
-
+        # Proceed with fetching WHOOP data and generating art
         try:
-            recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
+            whoop_session = requests.Session()
+            whoop_session.headers.update({"Authorization": f"Bearer {st.session_state['oauth_token']['access_token']}"})
+            
+            recovery_resp = whoop_session.get(f"{API_BASE_URL}/v1/recovery")
             recovery_resp.raise_for_status()
             recovery_data = recovery_resp.json()
             logging.debug(f"Recovery data: {recovery_data}")
-        except Exception as e:
-            logging.error(f"Error fetching recovery data: {str(e)}")
-            st.write("Failed to fetch recovery data.")
-            return
 
-        try:
             recovery_score = recovery_data['records'][0]['score']['recovery_score']
             logging.debug(f"Recovery Score: {recovery_score}")
-        except (KeyError, IndexError) as e:
-            logging.error(f"Error extracting recovery score: {str(e)}")
-            st.write("Failed to extract recovery score.")
-            return
 
-        art_base64 = generate_ai_art(recovery_score)
+            art_base64 = generate_ai_art(recovery_score)
 
-        if art_base64 is None:
-            logging.error("Failed to generate AI art.")
-            st.write("Failed to generate AI art.")
-            return
+            if art_base64 is None:
+                st.write("Failed to generate AI art.")
+            else:
+                st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
+                st.write(f"Recovery Score: {recovery_score}")
 
-        st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
-        st.write(f"Recovery Score: {recovery_score}")
+        except Exception as e:
+            st.error(f"Error fetching WHOOP data or generating art: {str(e)}")
+            logging.error(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     main()
