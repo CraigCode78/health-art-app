@@ -1,33 +1,29 @@
-import os
-from flask import Flask, redirect, request, session, jsonify, url_for, render_template
+import streamlit as st
 from requests_oauthlib import OAuth2Session
 import requests
 import logging
 from openai import OpenAI, OpenAIError, APIError, APIConnectionError, RateLimitError
 import base64
 
-app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')  # Use environment variable
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 # WHOOP API Configuration
-CLIENT_ID = os.getenv('WHOOP_CLIENT_ID')
-CLIENT_SECRET = os.getenv('WHOOP_CLIENT_SECRET')
-REDIRECT_URI = 'http://127.0.0.1:3030/callback'
+CLIENT_ID = st.secrets["whoop_client_id"]
+CLIENT_SECRET = st.secrets["whoop_client_secret"]
+REDIRECT_URI = 'http://localhost:8501/callback'
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # OpenAI API Configuration
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))  # Use environment variable
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 def token_updater(token):
-    session['oauth_token'] = token
+    st.session_state['oauth_token'] = token
 
 def get_whoop_session():
-    token = session.get('oauth_token')
+    token = st.session_state.get('oauth_token')
     if not token:
         return None
     return OAuth2Session(
@@ -40,49 +36,6 @@ def get_whoop_session():
         },
         token_updater=token_updater
     )
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/login')
-def login():
-    whoop = OAuth2Session(
-        CLIENT_ID,
-        redirect_uri=REDIRECT_URI, 
-        scope=['read:profile', 'read:recovery', 'read:workout', 'read:sleep']
-    )
-    authorization_url, state = whoop.authorization_url(AUTH_URL)
-    session['oauth_state'] = state
-    logging.info(f"Authorization URL: {authorization_url}")
-    logging.info(f"State: {state}")
-    return redirect(authorization_url)
-
-@app.route('/callback')
-def callback():
-    whoop = OAuth2Session(
-        CLIENT_ID,
-        state=session.get('oauth_state'),
-        redirect_uri=REDIRECT_URI
-    )
-    try:
-        # Modify fetch_token to use client_secret_post by setting auth to None
-        token = whoop.fetch_token(
-            TOKEN_URL,
-            authorization_response=request.url,
-            include_client_id=True,
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            method='POST',
-            auth=None,  # Disable client_secret_basic
-            state=session.get('oauth_state')
-        )
-    except Exception as e:
-        logging.error(f"Error fetching token: {e}")
-        return jsonify({"error": "Authentication failed"}), 500
-
-    token_updater(token)
-    return redirect(url_for('health_art'))
 
 def generate_ai_art(recovery_score, additional_metrics=None):
     """
@@ -147,55 +100,59 @@ def generate_ai_art(recovery_score, additional_metrics=None):
         logging.error(f"Error generating art: {str(e)}")
         return None
 
-@app.route('/health_art')
-def health_art():
-    whoop = get_whoop_session()
-    if not whoop:
-        return redirect(url_for('login'))
+def main():
+    st.title("Health Art Generator")
 
-    # Change the HTTP method from POST to GET as per WHOOP API documentation
-    try:
-        recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
-        recovery_resp.raise_for_status()
-        recovery_data = recovery_resp.json()
-        logging.debug(f"Recovery data: {recovery_data}")
-    except Exception as e:
-        logging.error(f"Error fetching recovery data: {str(e)}")
-        return jsonify({"error": "Failed to fetch recovery data"}), 500
+    if 'oauth_token' not in st.session_state:
+        st.session_state['oauth_token'] = None
 
-    # Extract the recovery score from the response
-    try:
-        recovery_score = recovery_data['records'][0]['score']['recovery_score']
-        logging.debug(f"Recovery Score: {recovery_score}")
-    except (KeyError, IndexError) as e:
-        logging.error(f"Error extracting recovery score: {str(e)}")
-        return jsonify({"error": "Failed to extract recovery score"}), 500
+    if st.session_state['oauth_token'] is None:
+        st.write("Please log in to WHOOP to continue.")
+        if st.button("Log in"):
+            whoop = OAuth2Session(
+                CLIENT_ID,
+                redirect_uri=REDIRECT_URI, 
+                scope=['read:profile', 'read:recovery', 'read:workout', 'read:sleep']
+            )
+            authorization_url, state = whoop.authorization_url(AUTH_URL)
+            st.session_state['oauth_state'] = state
+            st.write(f"Authorization URL: {authorization_url}")
+            st.write(f"State: {state}")
+            st.experimental_set_query_params(redirect=authorization_url)
+    else:
+        whoop = get_whoop_session()
+        if not whoop:
+            st.write("Failed to get WHOOP session. Please log in again.")
+            st.session_state['oauth_token'] = None
+            st.experimental_rerun()
 
-    # Generate the AI art
-    art_base64 = generate_ai_art(recovery_score)
+        try:
+            recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
+            recovery_resp.raise_for_status()
+            recovery_data = recovery_resp.json()
+            logging.debug(f"Recovery data: {recovery_data}")
+        except Exception as e:
+            logging.error(f"Error fetching recovery data: {str(e)}")
+            st.write("Failed to fetch recovery data.")
+            return
 
-    if art_base64 is None:
-        logging.error("Failed to generate AI art.")
-        return jsonify({"error": "Failed to generate AI art"}), 500
+        try:
+            recovery_score = recovery_data['records'][0]['score']['recovery_score']
+            logging.debug(f"Recovery Score: {recovery_score}")
+        except (KeyError, IndexError) as e:
+            logging.error(f"Error extracting recovery score: {str(e)}")
+            st.write("Failed to extract recovery score.")
+            return
 
-    # Render the HTML template with the art and recovery score
-    return render_template('health_art.html', recovery_score=recovery_score, art_base64=art_base64)
+        art_base64 = generate_ai_art(recovery_score)
 
-@app.route('/favicon.ico')
-def favicon():
-    return redirect(url_for('static', filename='favicon.ico'))
+        if art_base64 is None:
+            logging.error("Failed to generate AI art.")
+            st.write("Failed to generate AI art.")
+            return
 
-@app.errorhandler(404)
-def page_not_found(e):
-    logging.error(f"Page not found: {e}")
-    return jsonify(error="Page not found"), 404
+        st.image(f"data:image/png;base64,{art_base64}", caption="Generated AI Art")
+        st.write(f"Recovery Score: {recovery_score}")
 
-@app.errorhandler(Exception)
-def handle_exception(e):
-    logging.error(f"An unexpected error occurred: {e}")
-    return jsonify(error=str(e)), 500
-
-if __name__ == '__main__':
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # For development only
-    os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
-    app.run(host='127.0.0.1', port=3030, debug=True)
+if __name__ == "__main__":
+    main()
