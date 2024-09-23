@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HealthArt</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            function updateArt() {
+                $('#health-art').attr('src', '/get_art?' + new Date().getTime());
+            }
+            updateArt();
+            setInterval(updateArt, 3600000);  // Update hourly
+        });
+    </script>
+</head>
+<bod

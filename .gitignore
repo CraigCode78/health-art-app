@@ -1,0 +1,11 @@
+venv/
+.env
+__pycache__/
+*.pyc
+health_art_env/
+venv/
+.env
+__pycache__/
+*.pyc
+*.log
+.DS_Store
