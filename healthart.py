@@ -104,12 +104,21 @@ def main():
     st.title("Health Art Generator")
 
     # Check for OAuth callback
-    query_params = st.experimental_get_query_params()
+    query_params = st.query_params  # Updated from st.experimental_get_query_params()
     if 'code' in query_params:
         try:
-            code = query_params['code'][0]
-            whoop = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI)
-            token = whoop.fetch_token(TOKEN_URL, client_secret=CLIENT_SECRET, code=code)
+            code = query_params['code']
+            token_url = TOKEN_URL
+            token_data = {
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': REDIRECT_URI,
+                'client_id': CLIENT_ID,
+                'client_secret': CLIENT_SECRET
+            }
+            token_response = requests.post(token_url, data=token_data)
+            token_response.raise_for_status()
+            token = token_response.json()
             st.session_state['oauth_token'] = token
             st.success("Successfully authenticated with WHOOP!")
             st.experimental_rerun()
