@@ -103,13 +103,20 @@ def generate_ai_art(recovery_score, additional_metrics=None):
 def main():
     st.title("Health Art Generator")
 
+    # Check for OAuth callback
     query_params = st.experimental_get_query_params()
     if 'code' in query_params:
-        code = query_params['code'][0]
-        whoop = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI)
-        token = whoop.fetch_token(TOKEN_URL, client_secret=CLIENT_SECRET, code=code)
-        st.session_state['oauth_token'] = token
-        st.experimental_rerun()
+        try:
+            code = query_params['code'][0]
+            whoop = OAuth2Session(CLIENT_ID, redirect_uri=REDIRECT_URI)
+            token = whoop.fetch_token(TOKEN_URL, client_secret=CLIENT_SECRET, code=code)
+            st.session_state['oauth_token'] = token
+            st.success("Successfully authenticated with WHOOP!")
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error during authentication: {str(e)}")
+            logging.error(f"Authentication error: {str(e)}")
+            st.session_state['oauth_token'] = None
 
     if 'oauth_token' not in st.session_state:
         st.session_state['oauth_token'] = None
@@ -125,8 +132,7 @@ def main():
             authorization_url, state = whoop.authorization_url(AUTH_URL)
             st.session_state['oauth_state'] = state
             st.write(f"Authorization URL: {authorization_url}")
-            st.write(f"State: {state}")
-            st.experimental_set_query_params(redirect=authorization_url)
+            st.markdown(f"[Click here to authorize]({authorization_url})")
     else:
         whoop = get_whoop_session()
         if not whoop:
