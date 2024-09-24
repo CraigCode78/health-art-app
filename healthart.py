@@ -9,18 +9,18 @@ from threading import Thread
 import time
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Updated to use environment variable
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Ensure this is set in your environment variables
 
 # WHOOP API Configuration
-CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID')  # Updated to use environment variable
-CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET')  # Updated to use environment variable
+CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID')  # Ensure this is set in your environment variables
+CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET')  # Ensure this is set in your environment variables
 REDIRECT_URI = 'https://health-art-app.vercel.app/callback'
 AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth'
 TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 API_BASE_URL = 'https://api.prod.whoop.com/developer'
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Ensure this is set in your environment variables
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -156,6 +156,7 @@ def health_art():
         return redirect(url_for('login'))
 
     try:
+        # Fetch recovery data
         recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
         recovery_resp.raise_for_status()
         recovery_data = recovery_resp.json()
@@ -171,8 +172,53 @@ def health_art():
         logging.error(f"Error extracting recovery score: {str(e)}")
         return jsonify({"error": "Failed to extract recovery score"}), 500
 
-    # Render the health_art.html without the image initially
-    return render_template('health_art.html', recovery_score=recovery_score)
+    # Fetch additional metrics
+    additional_metrics = {}
+    try:
+        # Fetch sleep data
+        sleep_resp = whoop.get(f"{API_BASE_URL}/v1/sleep")
+        sleep_resp.raise_for_status()
+        sleep_data = sleep_resp.json()
+        logging.debug(f"Sleep data: {sleep_data}")
+        # Extract sleep quality (assuming such a field exists)
+        sleep_quality = sleep_data['records'][0]['quality_score']
+        additional_metrics['sleep_quality'] = sleep_quality
+    except Exception as e:
+        logging.warning(f"Error fetching sleep data: {str(e)}")
+        additional_metrics['sleep_quality'] = None  # Handle absence gracefully
+
+    try:
+        # Fetch workout data
+        workout_resp = whoop.get(f"{API_BASE_URL}/v1/workouts")
+        workout_resp.raise_for_status()
+        workout_data = workout_resp.json()
+        logging.debug(f"Workout data: {workout_data}")
+        # Extract strain (assuming such a field exists)
+        strain = workout_data['records'][0]['strain']
+        additional_metrics['strain'] = strain
+    except Exception as e:
+        logging.warning(f"Error fetching workout data: {str(e)}")
+        additional_metrics['strain'] = None  # Handle absence gracefully
+
+    try:
+        # Fetch HRV data
+        hrv_resp = whoop.get(f"{API_BASE_URL}/v1/hrv")
+        hrv_resp.raise_for_status()
+        hrv_data = hrv_resp.json()
+        logging.debug(f"HRV data: {hrv_data}")
+        # Extract HRV (assuming such a field exists)
+        hrv = hrv_data['records'][0]['hrv']
+        additional_metrics['hrv'] = hrv
+    except Exception as e:
+        logging.warning(f"Error fetching HRV data: {str(e)}")
+        additional_metrics['hrv'] = None  # Handle absence gracefully
+
+    # Render the health_art.html with all data
+    return render_template(
+        'health_art.html',
+        recovery_score=recovery_score,
+        additional_metrics=additional_metrics
+    )
 
 @app.route('/generate_art', methods=['POST'])
 def generate_art():
@@ -196,12 +242,49 @@ def generate_art():
         logging.error(f"Error extracting recovery score: {str(e)}")
         return jsonify({"error": "Failed to extract recovery score"}), 500
 
+    # Fetch additional metrics
+    additional_metrics = {}
+    try:
+        # Fetch sleep data
+        sleep_resp = whoop.get(f"{API_BASE_URL}/v1/sleep")
+        sleep_resp.raise_for_status()
+        sleep_data = sleep_resp.json()
+        logging.debug(f"Sleep data: {sleep_data}")
+        sleep_quality = sleep_data['records'][0]['quality_score']
+        additional_metrics['sleep_quality'] = sleep_quality
+    except Exception as e:
+        logging.warning(f"Error fetching sleep data: {str(e)}")
+        additional_metrics['sleep_quality'] = None
+
+    try:
+        # Fetch workout data
+        workout_resp = whoop.get(f"{API_BASE_URL}/v1/workouts")
+        workout_resp.raise_for_status()
+        workout_data = workout_resp.json()
+        logging.debug(f"Workout data: {workout_data}")
+        strain = workout_data['records'][0]['strain']
+        additional_metrics['strain'] = strain
+    except Exception as e:
+        logging.warning(f"Error fetching workout data: {str(e)}")
+        additional_metrics['strain'] = None
+
+    try:
+        # Fetch HRV data
+        hrv_resp = whoop.get(f"{API_BASE_URL}/v1/hrv")
+        hrv_resp.raise_for_status()
+        hrv_data = hrv_resp.json()
+        logging.debug(f"HRV data: {hrv_data}")
+        hrv = hrv_data['records'][0]['hrv']
+        additional_metrics['hrv'] = hrv
+    except Exception as e:
+        logging.warning(f"Error fetching HRV data: {str(e)}")
+        additional_metrics['hrv'] = None
+
     # Simulate processing time (10-20 seconds)
-    # Remove this in production
-    # time.sleep(15)
+    time.sleep(15)  # Remove or adjust this in production
 
     # Generate AI art
-    art_base64 = generate_ai_art(recovery_score)
+    art_base64 = generate_ai_art(recovery_score, additional_metrics=additional_metrics)
 
     if art_base64 is None:
         logging.error("Failed to generate AI art.")

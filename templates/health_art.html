@@ -62,6 +62,51 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Health Metrics Section */
+        .health-metrics {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 10px;
+            margin: 40px 0;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .health-metrics h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            color: #111;
+        }
+
+        .recovery-score {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            color: #fff;
+        }
+
+        .high {
+            background-color: #28a745; /* Green */
+        }
+
+        .medium {
+            background-color: #ffc107; /* Yellow */
+            color: #333;
+        }
+
+        .low {
+            background-color: #dc3545; /* Red */
+        }
+
+        .additional-facts {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 10px;
+        }
+
         /* Latest HealthArt Section */
         .latest-art {
             text-align: center;
@@ -132,6 +177,10 @@
             .feature {
                 flex: 1 1 80%;
             }
+
+            .health-metrics {
+                padding: 20px;
+            }
         }
 
         @media (max-width: 600px) {
@@ -158,6 +207,33 @@
 </head>
 <body>
     <div class="container">
+        <!-- Health Metrics Section -->
+        <section class="health-metrics">
+            <h2>Your Health Metrics</h2>
+            <div class="recovery-score 
+                {% if recovery_score > 80 %}
+                    high
+                {% elif recovery_score > 50 %}
+                    medium
+                {% else %}
+                    low
+                {% endif %}
+            ">
+                Recovery Score: {{ recovery_score }}
+            </div>
+            <div class="additional-facts">
+                {% if additional_metrics.sleep_quality %}
+                    <p>Sleep Quality: {{ additional_metrics.sleep_quality }}%</p>
+                {% endif %}
+                {% if additional_metrics.strain %}
+                    <p>Strain: {{ additional_metrics.strain }}/21</p>
+                {% endif %}
+                {% if additional_metrics.hrv %}
+                    <p>Heart Rate Variability (HRV): {{ additional_metrics.hrv }} ms</p>
+                {% endif %}
+            </div>
+        </section>
+
         <!-- Latest HealthArt Section -->
         <section class="latest-art">
             <h2>Your Latest HealthArt</h2>
