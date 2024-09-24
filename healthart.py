@@ -5,6 +5,8 @@ import requests
 import logging
 from openai import OpenAI, OpenAIError, APIError, APIConnectionError, RateLimitError
 import base64
+from threading import Thread
+import time
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Updated to use environment variable
@@ -153,7 +155,6 @@ def health_art():
     if not whoop:
         return redirect(url_for('login'))
 
-    # Change the HTTP method from POST to GET as per WHOOP API documentation
     try:
         recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
         recovery_resp.raise_for_status()
@@ -163,7 +164,6 @@ def health_art():
         logging.error(f"Error fetching recovery data: {str(e)}")
         return jsonify({"error": "Failed to fetch recovery data"}), 500
 
-    # Extract the recovery score from the response
     try:
         recovery_score = recovery_data['records'][0]['score']['recovery_score']
         logging.debug(f"Recovery Score: {recovery_score}")
@@ -171,15 +171,43 @@ def health_art():
         logging.error(f"Error extracting recovery score: {str(e)}")
         return jsonify({"error": "Failed to extract recovery score"}), 500
 
-    # Generate the AI art
+    # Render the health_art.html without the image initially
+    return render_template('health_art.html', recovery_score=recovery_score)
+
+@app.route('/generate_art', methods=['POST'])
+def generate_art():
+    whoop = get_whoop_session()
+    if not whoop:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        recovery_resp = whoop.get(f"{API_BASE_URL}/v1/recovery")
+        recovery_resp.raise_for_status()
+        recovery_data = recovery_resp.json()
+        logging.debug(f"Recovery data: {recovery_data}")
+    except Exception as e:
+        logging.error(f"Error fetching recovery data: {str(e)}")
+        return jsonify({"error": "Failed to fetch recovery data"}), 500
+
+    try:
+        recovery_score = recovery_data['records'][0]['score']['recovery_score']
+        logging.debug(f"Recovery Score: {recovery_score}")
+    except (KeyError, IndexError) as e:
+        logging.error(f"Error extracting recovery score: {str(e)}")
+        return jsonify({"error": "Failed to extract recovery score"}), 500
+
+    # Simulate processing time (10-20 seconds)
+    # Remove this in production
+    # time.sleep(15)
+
+    # Generate AI art
     art_base64 = generate_ai_art(recovery_score)
 
     if art_base64 is None:
         logging.error("Failed to generate AI art.")
         return jsonify({"error": "Failed to generate AI art"}), 500
 
-    # Render the HTML template with the art and recovery score
-    return render_template('health_art.html', recovery_score=recovery_score, art_base64=art_base64)
+    return jsonify({"image_data": art_base64})
 
 @app.route('/favicon.ico')
 def favicon():

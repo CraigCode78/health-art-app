@@ -1,33 +1,213 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>Your Health Art</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Latest HealthArt - HealthArt</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-papLvz3929qUwjFcw+i5ScOGSdEix4nBUgTar50oE5vAmXxE7XR1O8f0LuCr8x8ZJzRtUZyH2ZodDvInV7corQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Styles -->
+    <style>
+        /* Reset CSS */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Typography */
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+        }
+
+        h1, h2, h3 {
+            font-weight: 700;
+            color: #222;
+        }
+
+        p {
+            font-weight: 300;
+            color: #555;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 8px solid #f3f3f3; /* Light grey */
+            border-top: 8px solid #007BFF; /* Blue */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+            margin: 40px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Latest HealthArt Section */
+        .latest-art {
+            text-align: center;
+            margin: 60px 0;
+        }
+
+        .latest-art h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            color: #111;
+        }
+
+        #health-art {
+            max-width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            display: none; /* Hidden initially */
+            margin-top: 20px;
+        }
+
+        #health-art.show {
+            display: block;
+        }
+
+        /* Additional HealthArt Section */
+        .additional-art {
+            margin-top: 40px;
+        }
+
+        .additional-art img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .additional-art img:hover {
+            transform: scale(1.05);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px 0;
+            background-color: #f1f1f1;
+            color: #777;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 992px) {
+            .hero {
+                flex-direction: column;
+            }
+
+            .hero-content {
+                padding-right: 0;
                 text-align: center;
-                margin: 0;
-                padding: 0;
-                background-color: #f4f4f4;
             }
-            .container {
-                margin: 50px auto;
-                padding: 20px;
-                background-color: #fff;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                max-width: 800px;
+
+            .features {
+                flex-direction: column;
+                align-items: center;
             }
-            img {
-                max-width: 100%;
-                height: auto;
+
+            .feature {
+                flex: 1 1 80%;
             }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Your Health Art</h1>
-            <p>Recovery Score: {{ recovery_score }}</p>
-            <img src="data:image/png;base64,{{ art_base64 }}" alt="Health Art">
-        </div>
-    </body>
+        }
+
+        @media (max-width: 600px) {
+            .hero-content h1 {
+                font-size: 2.2em;
+            }
+
+            .hero-content p {
+                font-size: 1em;
+            }
+
+            .cta-button {
+                padding: 12px 25px;
+                font-size: 0.9em;
+                width: 100%; /* Full width on small screens */
+                text-align: center;
+            }
+
+            .feature {
+                flex: 1 1 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Latest HealthArt Section -->
+        <section class="latest-art">
+            <h2>Your Latest HealthArt</h2>
+            <!-- Loading Spinner -->
+            <div id="loader" class="spinner"></div>
+            <!-- AI Generated Image -->
+            <img id="health-art" src="" alt="Your Latest Health Art">
+        </section>
+
+        <!-- Additional HealthArt Section with healthart2.png -->
+        <section class="additional-art">
+            <h2>Explore More Creations</h2>
+            <img src="{{ url_for('static', filename='images/healthart2.png') }}" alt="Additional Health Art">
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        &copy; 2023 HealthArt. All rights reserved.
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        $(document).ready(function() {
+            function generateArt() {
+                $.ajax({
+                    url: "{{ url_for('generate_art') }}",
+                    type: "POST",
+                    dataType: "json",
+                    success: function(response) {
+                        if (response.image_data) {
+                            $('#health-art').attr('src', 'data:image/png;base64,' + response.image_data);
+                            $('#health-art').addClass('show');
+                            $('#loader').hide();
+                        } else {
+                            $('#loader').hide();
+                            alert('Failed to generate art.');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        $('#loader').hide();
+                        alert('An error occurred while generating art.');
+                        console.error(xhr.responseText);
+                    }
+                });
+            }
+
+            // Initiate art generation on page load
+            generateArt();
+        });
+    </script>
+</body>
 </html>
