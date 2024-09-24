@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>HealthArt</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthArt - Transform Your Health Data into Art</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
@@ -13,10 +15,111 @@
             setInterval(updateArt, 3600000);  // Update hourly
         });
     </script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        .hero {
+            display: flex;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        .hero-content {
+            flex: 1;
+        }
+        .hero-image {
+            flex: 1;
+            text-align: right;
+        }
+        .hero-image img {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #3498db;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .cta-button:hover {
+            background-color: #2980b9;
+        }
+        .features {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+        }
+        .feature {
+            flex: 1;
+            margin: 0 15px;
+            text-align: center;
+        }
+        .feature h3 {
+            color: #2c3e50;
+        }
+        #health-art {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to HealthArt!</h1>
-    <a href="/login">Login with WHOOP</a>
-    <img id="health-art" src="" alt="Health Art">
+    <div class="container">
+        <div class="hero">
+            <div class="hero-content">
+                <h1>Welcome to HealthArt</h1>
+                <p>Transform your WHOOP health data into stunning, personalized artwork. HealthArt uses AI to create unique visual representations of your wellness journey.</p>
+                <a href="/login" class="cta-button">Connect Your WHOOP Account</a>
+            </div>
+            <div class="hero-image">
+                <img src="{{ url_for('static', filename='images/healthart.png') }}" alt="HealthArt Example" />
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>Connect</h3>
+                <p>Securely link your WHOOP account to access your health metrics.</p>
+            </div>
+            <div class="feature">
+                <h3>Generate</h3>
+                <p>Our AI analyzes your data and creates a unique piece of art.</p>
+            </div>
+            <div class="feature">
+                <h3>Visualize</h3>
+                <p>See your health journey come to life in beautiful, abstract art.</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px;">
+            <h2>Your Latest HealthArt</h2>
+            <img id="health-art" src="" alt="Your Health Art">
+        </div>
+    </div>
 </body>
 </html>
