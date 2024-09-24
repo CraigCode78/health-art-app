@@ -171,7 +171,7 @@ def health_art():
         logging.error(f"Error extracting recovery score: {str(e)}")
         return jsonify({"error": "Failed to extract recovery score"}), 500
 
-    # Render the health_art.html without the image initially
+    # Render the health_art.html with the recovery score
     return render_template('health_art.html', recovery_score=recovery_score)
 
 @app.route('/generate_art', methods=['POST'])

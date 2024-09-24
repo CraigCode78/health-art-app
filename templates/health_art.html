@@ -154,6 +154,31 @@
                 flex: 1 1 100%;
             }
         }
+
+        /* Add these new styles for the recovery score */
+        .recovery-score {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .recovery-score.high {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .recovery-score.medium {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .recovery-score.low {
+            background-color: #dc3545;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +186,12 @@
         <!-- Latest HealthArt Section -->
         <section class="latest-art">
             <h2>Your Latest HealthArt</h2>
+            
+            <!-- Recovery Score -->
+            <div class="recovery-score {% if recovery_score > 80 %}high{% elif recovery_score > 50 %}medium{% else %}low{% endif %}">
+                Recovery Score: {{ recovery_score }}
+            </div>
+            
             <!-- Loading Spinner -->
             <div id="loader" class="spinner"></div>
             <!-- AI Generated Image -->
