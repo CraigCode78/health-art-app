@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Meta Tags -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthArt - Transform Your Health Data into Art</title>
+    <title>HealthArt - Your Fitness Journey, Visualised!</title>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
     <!-- Favicon -->
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <!-- Font Awesome for Icons -->
@@ -23,7 +24,7 @@
 
         /* Typography */
         body {
-            font-family: 'Roboto', sans-serif;
+            font-family: 'Inter', sans-serif;
             line-height: 1.6;
             color: #333;
             background-color: #fff;
@@ -31,7 +32,7 @@
 
         h1, h2, h3 {
             font-weight: 700;
-            color: #222;
+            color: #000;
         }
 
         p {
@@ -41,66 +42,65 @@
 
         /* Container */
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
         /* Hero Section */
         .hero {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            text-align: center;
-            padding: 20px 0; /* Reduce vertical padding */
+            justify-content: center;
+            text-align: left;
+            padding: 80px 20px;
         }
 
         .hero-content {
-            flex: 1 1 500px;
-            padding-right: 20px;
-            margin-bottom: 20px; /* Reduce margin at the bottom */
+            flex: 1;
+            padding-right: 40px;
         }
 
         .hero-content h1 {
-            font-size: 3em;
-            margin-bottom: 20px;
-            color: #111;
+            font-size: 3.5em;
+            margin-bottom: 30px;
+            color: #000;
         }
 
         .hero-content p {
-            font-size: 1.2em;
-            margin-bottom: 30px;
-            color: #555;
+            font-size: 1.5em;
+            margin-bottom: 40px;
+            color: #444;
         }
 
         .cta-button {
             display: inline-block;
-            background-color: #007BFF;
+            background-color: #007AFF;
             color: #fff;
             padding: 15px 30px;
             border-radius: 50px;
             text-decoration: none;
             font-weight: 500;
-            transition: background-color 0.3s ease;
-            margin-bottom: 20px; /* Add some space below the button */
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .cta-button:hover {
-            background-color: #0056b3;
+            background-color: #005BBB;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
         .hero-image {
-            flex: 1 1 400px;
+            flex: 1;
             max-width: 100%;
             height: auto;
-            border-radius: 15px;
+            border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: transform 0.3s ease;
-            margin-top: 0; /* Remove top margin */
         }
 
         .hero-image:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
         /* Features Section */
@@ -108,17 +108,18 @@
             display: flex;
             justify-content: space-between;
             flex-wrap: wrap;
-            margin: 60px 0;
+            margin: 80px 0;
+            gap: 20px;
         }
 
         .feature {
             flex: 1 1 30%;
-            background-color: #f9f9f9;
-            padding: 30px;
-            border-radius: 10px;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 15px;
             text-align: center;
-            margin-bottom: 20px;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .feature:hover {
@@ -128,14 +129,14 @@
 
         .feature-icon i {
             font-size: 3em;
-            color: #007BFF;
+            color: #007AFF;
             margin-bottom: 20px;
         }
 
         .feature h3 {
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            color: #111;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #000;
         }
 
         .feature p {
@@ -143,52 +144,36 @@
             color: #555;
         }
 
-        /* Latest HealthArt Section */
-        .latest-art {
-            text-align: center;
-            margin: 60px 0;
-        }
-
-        .latest-art h2 {
-            font-size: 2em;
-            margin-bottom: 20px;
-            color: #111;
-        }
-
-        #health-art {
-            max-width: 100%;
-            height: auto;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }
-
-        #health-art:hover {
-            transform: scale(1.05);
-        }
-
-        /* Additional Latest HealthArt Image */
+        /* Additional Art Section */
         .additional-art {
-            margin-top: 40px;
+            text-align: center;
+            margin: 80px 0;
+        }
+
+        .additional-art h2 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            color: #000;
         }
 
         .additional-art img {
             max-width: 100%;
             height: auto;
-            border-radius: 15px;
+            border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: transform 0.3s ease;
+            margin-bottom: 40px;
         }
 
         .additional-art img:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
         /* Footer */
         .footer {
             text-align: center;
             padding: 40px 0;
-            background-color: #f1f1f1;
+            background-color: #f9f9f9;
             color: #777;
         }
 
@@ -196,11 +181,17 @@
         @media (max-width: 992px) {
             .hero {
                 flex-direction: column;
+                padding: 60px 20px;
+                text-align: center;
             }
 
             .hero-content {
                 padding-right: 0;
-                text-align: center;
+                margin-bottom: 40px;
+            }
+
+            .hero-image {
+                width: 100%;
             }
 
             .features {
@@ -215,37 +206,24 @@
 
         @media (max-width: 600px) {
             .hero-content h1 {
-                font-size: 2.2em;
+                font-size: 2.5em;
             }
 
             .hero-content p {
-                font-size: 1em;
+                font-size: 1.2em;
             }
 
             .cta-button {
                 padding: 12px 25px;
-                font-size: 0.9em;
-                width: 100%; /* Full width on small screens */
-                text-align: center;
+                font-size: 1em;
             }
 
             .feature {
                 flex: 1 1 100%;
             }
-        }
 
-        /* Adjust spacing for mobile devices */
-        @media (max-width: 768px) {
-            .hero {
-                padding: 10px 0; /* Further reduce padding on mobile */
-            }
-
-            .hero-content {
-                margin-bottom: 15px; /* Reduce margin on mobile */
-            }
-
-            .cta-button {
-                margin-bottom: 15px; /* Reduce margin on mobile */
+            .feature h3 {
+                font-size: 1.5em;
             }
         }
     </style>
@@ -265,8 +243,8 @@
         <!-- Hero Section -->
         <section class="hero">
             <div class="hero-content">
-                <h1>Transform Your Health Data into Stunning Art</h1>
-                <p>HealthArt leverages your WHOOP health metrics to create unique, personalized visual masterpieces that reflect your wellness journey.</p>
+                <h1>Your Fitness Journey, Visualised!</h1>
+                <p>Experience your fitness journey like never before. HealthArt transforms your WHOOP data into personalised art.</p>
                 <a href="/login" class="cta-button">Connect Your WHOOP Account</a>
             </div>
             <img class="hero-image" src="{{ url_for('static', filename='images/healthart.png') }}" alt="HealthArt Visualization" />
@@ -276,24 +254,22 @@
         <section class="features">
             <div class="feature">
                 <div class="feature-icon"><i class="fas fa-link"></i></div>
-                <h3>Connect Seamlessly</h3>
-                <p>Securely link your WHOOP account to grant HealthArt access to your health data effortlessly.</p>
+                <h3>Seamless Connection</h3>
+                <p>Effortlessly link your WHOOP account to let HealthArt access your health data securely.</p>
             </div>
             <div class="feature">
                 <div class="feature-icon"><i class="fas fa-paint-brush"></i></div>
-                <h3>Generate Art</h3>
-                <p>Our advanced AI transforms your health metrics into breathtaking visual art tailored just for you.</p>
+                <h3>AI-Generated Art</h3>
+                <p>Our advanced AI turns your health metrics into breathtaking visual art tailored just for you.</p>
             </div>
             <div class="feature">
                 <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
-                <h3>Visualize Progress</h3>
-                <p>Monitor your wellness journey through stunning graphics that evolve with your data.</p>
+                <h3>Visual Progress</h3>
+                <p>Track your fitness journey through stunning graphics that evolve with your data.</p>
             </div>
         </section>
 
- 
-
-        <!-- Additional HealthArt Section with healthart2.png -->
+        <!-- Additional HealthArt Section -->
         <section class="additional-art">
             <h2>Explore More Creations...coming soon</h2>
             <img src="{{ url_for('static', filename='images/healthart2.png') }}" alt="Additional Health Art">
@@ -302,7 +278,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        &copy; 2024 HealthArt. All rights reserved. Craig Hepburn
+        &copy; 2024 HealthArt. All rights reserved.
     </footer>
 </body>
 </html>
